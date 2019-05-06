@@ -45,12 +45,12 @@ This module does not yet support arms
 - Select the fields to display:
   - Select the variables from your project to display in the table.  1. Is the most left hand column.  
 - Display logged in users name within field
-  - `user_fullname` will pull in the logged in users full name
+  - [user_fullname] will pull in the logged in users full name
 
 ## Considerations
 
 - There are two hard coded values
-  - `contact_result` shows the colors on the table 
+  - `contact_result` shows the colors on the table
   - `call_date` is uses to display the call attempts
 - Repeating instruments and events will show the information from the latest form.  
 - Projects with significant record counts will increase load times and may not render (10,000 + record counts)
