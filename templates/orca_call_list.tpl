@@ -102,7 +102,7 @@
             </thead>
             <tbody>
             {foreach from=$data key=record_id item=record}
-                <tr class="{$record["contact_result"]["status"]}" data-contact-result="{$record["contact_result"]["raw"]}" data-dropdown-filter="{$record[{$filter_dropdown_field}]["raw"]}">
+                <tr class="{$record["contact_result"]["status"]}" data-contact-result="{$record["contact_result"]["raw"]}" data-dropdown-filter="{$record[$config["selected_display_filter"]]["raw"]}">
                     {foreach from=$config["display_fields"] key=field_name item=field_info}
                         {if $field_info["display"] === true}
                             <td{if !empty($record[$field_name]["__SORT__"])} data-sort="{$record[$field_name]["__SORT__"]}"{/if}>

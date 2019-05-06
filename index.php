@@ -10,7 +10,7 @@ $config = [
     "user_dag" => null,
     "exportDataAccessGroups" => false,
     "has_repeating_forms" => $Proj->hasRepeatingForms(),
-    "display_title" => $module->getProjectSetting("display_title") ?? "Orca Call List",
+    "display_title" => $module->getProjectSetting("display_title"),
     "selected_display_filter" => $module->getProjectSetting("display_filter_fields"),
     "contact_attempts" => [
         "display" => $module->getProjectSetting("display_contact_attempts"),
@@ -51,6 +51,10 @@ $metadata = [
         ]
     ]
 ];
+
+if (empty($config["display_title"])) {
+    $config["display_title"] = "Orca Call List";
+}
 
 // add some handling for DAGs, if the project uses them
 if (count($Proj->getGroups()) > 0) {
@@ -219,14 +223,14 @@ foreach ($data as $record_id => $record) {
         "dashboard_url" => $dashboard_url
     ];
     // manually process filter variable, in case it isn't displayed
-    if (!empty($selected_display_filter)) {
-        $field_form_name = $metadata["fields"][$selected_display_filter]["form"];
+    if (!empty($config["selected_display_filter"])) {
+        $field_form_name = $metadata["fields"][$config["selected_display_filter"]]["form"];
         $field_form_event_id = array_reverse($metadata["forms"][$field_form_name]["event_info"],true);
         foreach ($field_form_event_id as $ev_id => $event_info) {
             if ($field_form_event_id[$ev_id]["repeating"] == 1) {
                 if (array_key_exists($field_form_name, $record["repeat_instances"][$ev_id])) {
-                    $filter_result = end($record["repeat_instances"][$ev_id][$field_form_name])[$selected_display_filter];
-                    $record_info[$selected_display_filter] = [
+                    $filter_result = end($record["repeat_instances"][$ev_id][$field_form_name])[$config["selected_display_filter"]];
+                    $record_info[$config["selected_display_filter"]] = [
                         "raw" => $filter_result
                     ];
                     break;
@@ -239,8 +243,8 @@ foreach ($data as $record_id => $record) {
                     if (count($temp_array_filter_array) < 2) {
                         continue;
                     } else {
-                        $filter_result = end($record["repeat_instances"][$ev_id][null])[$selected_display_filter];
-                        $record_info[$selected_display_filter] = [
+                        $filter_result = end($record["repeat_instances"][$ev_id][null])[$config["selected_display_filter"]];
+                        $record_info[$config["selected_display_filter"]] = [
                             "raw" => $filter_result
                         ];
                         break;
@@ -251,14 +255,14 @@ foreach ($data as $record_id => $record) {
                 if ($record[$ev_id][$complete_field] == '') {
                     continue;
                 } else {
-                    $filter_result = $record[$ev_id][$selected_display_filter];
+                    $filter_result = $record[$ev_id][$config["selected_display_filter"]];
                     if (is_array($filter_result)) {
                         $filter_result = array_filter($filter_result, function($v) {
                             return $v === "1";
                         });
                         $filter_result = implode(",", array_keys($filter_result));
                     }
-                    $record_info[$selected_display_filter] = [
+                    $record_info[$config["selected_display_filter"]] = [
                         "raw" => $filter_result
                     ];
                     break;
@@ -454,7 +458,6 @@ $module->setTemplateVariable("contact_result_metadata", $contact_result_metadata
 $module->setTemplateVariable("ajax_url",$module->getUrl("save_ajax.php",false,true));
 $module->setTemplateVariable("call_list_selections", json_encode($call_list_selections));
 $module->setTemplatevariable("filter_dropdown_options", $dd_display_filter);
-$module->setTemplatevariable("filter_dropdown_field", $selected_display_filter);
 $module->setTemplatevariable("display_title", $config["display_title"]);
 
 echo "<link rel='stylesheet' type='text/css' href='" . $module->getUrl("css/call_list.css") . "' />";
