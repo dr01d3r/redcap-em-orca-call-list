@@ -24,6 +24,12 @@
       "institution": "Marshfield Clinic Research Institute"
     }
   ],
+  "compatibility": {
+    "php-version-min": "5.6.0",
+    "php-version-max": "",
+    "redcap-version-min": "8.7.0",
+    "redcap-version-max": ""
+  },
   "permissions": [
     "redcap_data_entry_form"
   ],
