@@ -1,0 +1,84 @@
+#cl-table {
+    display: none;
+}
+.dataTables_wrapper ul {
+    -webkit-padding-start: 20px;
+    margin-bottom: 0px;
+}
+
+a.btn-email {
+    font-size: 1.7rem;
+}
+
+/*Drawing the colored squares*/
+.cl-filter-square {
+    height: 10px;
+    width: 10px;
+    display: inline-block;
+}
+/*Appointment Scheduled*/
+.cl-green, .cl-green>td, .cl-green>th{
+    background-color: #c1ffd3 !important;
+}
+.table-hover .cl-green:hover {
+    background-color: #b1dfbb !important;
+}
+.table-hover .cl-green:hover>td,.table-hover .cl-green:hover>th {
+    background-color: #b1dfbb !important;
+}
+
+/*Busy*/
+.cl-blue,.cl-blue>td,.cl-blue>th {
+    background-color: #bee5eb !important;
+}
+.table-hover .cl-blue:hover {
+    background-color: #abdde5 !important;
+}
+.table-hover .cl-blue:hover>td,.table-hover .cl-blue:hover>th {
+    background-color: #abdde5 !important;
+}
+
+/*call back with date*/
+.cl-red,.cl-red>td,.cl-red>th {
+    background-color: #f5c6cb !important;
+}
+.table-hover .cl-red:hover {
+    background-color: #f1b0b7 !important;
+}
+.table-hover .cl-red:hover>td,.table-hover .cl-red:hover>th {
+    background-color: #f1b0b7 !important;
+}
+
+
+/*call back without date*/
+.cl-purple,.cl-purple>td,.cl-purple>th {
+    background-color: #e0beeb !important;
+}
+.table-hover .cl-purple:hover {
+    background-color: #e3b1f3 !important;
+}
+.table-hover .cl-purple:hover>td,.table-hover .cl-purple:hover>th {
+    background-color: #e3b1f3 !important;
+}
+
+/*left message*/
+.cl-orange,.cl-orange>td,.cl-orange>th {
+    background-color: #FFDAB9 !important;
+}
+.table-hover .cl-orange:hover {
+    background-color: #fbc99c !important;
+}
+.table-hover .cl-orange:hover>td,.table-hover .cl-orange:hover>th {
+    background-color: #fbc99c !important;
+}
+
+/*will call us*/
+.cl-yellow,.cl-yellow>td,.cl-yellow>th {
+    background-color: #ffeeba !important;
+}
+.table-hover .cl-yellow:hover {
+    background-color: #ffe8a1 !important;
+}
+.table-hover .cl-yellow:hover>td,.table-hover .cl-yellow:hover>th {
+    background-color: #ffe8a1 !important;
+}
