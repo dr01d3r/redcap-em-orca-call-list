@@ -45,7 +45,7 @@ This module does not yet support arms
 - Select the fields to display:
   - Select the variables from your project to display in the table.  1. Is the most left hand column.  
 - Display logged in users name within field
-  - [user_fullname] will pull in the logged in users full name
+  - `[user_fullname]` will pull in the logged in users full name
 
 ## Considerations
 
