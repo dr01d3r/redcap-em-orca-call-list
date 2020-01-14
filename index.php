@@ -11,7 +11,6 @@ $config = [
     "exportDataAccessGroups" => false,
     "has_repeating_forms" => $Proj->hasRepeatingForms(),
     "display_title" => $module->getProjectSetting("display_title"),
-    "selected_display_filter" => $module->getProjectSetting("display_filter_fields"),
     "contact_attempts" => [
         "display" => $module->getProjectSetting("display_contact_attempts"),
         "field_name" => "call_date",
@@ -22,6 +21,11 @@ $config = [
         ]
     ],
     "display_fields" => [],
+];
+
+$data_fields = [
+    "call_date",
+    "contact_result"
 ];
 
 $metadata = [
@@ -51,6 +55,10 @@ $metadata = [
         ]
     ]
 ];
+
+//used to store sorting info for columns based on
+// $config["display_fields"][display_field_sort_direction / display_field_sort_priority / display_field_sort_on_field]
+$fieldSortingInfo = [];
 
 if (empty($config["display_title"])) {
     $config["display_title"] = "Orca Call List";
@@ -143,25 +151,93 @@ if ($config["has_repeating_forms"]) {
     }
 }
 
+$filter_field = $module->getProjectSetting("display_filter_fields");
+if (!empty($filter_field)) {
+    $filter_field_values = [];
+    // set structured values for display in search options
+    switch ($Proj->metadata[$filter_field]["element_type"]) {
+        case "select":
+        case "radio":
+        case "checkbox":
+            $filter_field_values = $module->getDictionaryValuesFor($filter_field);
+            break;
+        case "yesno":
+        case "truefalse":
+            $filter_field_values = $metadata["custom_dictionary_values"][$Proj->metadata[$filter_field]["element_type"]];
+            break;
+        default: break;
+    }
+    $config["filter_field"] = [
+        "field_name" => $filter_field,
+        "field_label" => $module->getDictionaryLabelFor($filter_field),
+        "field_values" => $filter_field_values,
+
+        "form_name" => $metadata["fields"][$filter_field]["form"],
+        "form_events" => [],
+    ];
+    $config["filter_field"]["form_events"] = array_reverse($metadata["forms"][$config["filter_field"]["form_name"]]["event_info"],true);
+
+    $data_fields[] = $filter_field;
+    $data_fields[] = $config["filter_field"]["form_name"] . "_complete";
+}
+
+//used to keep track of the zero-based index of each column (because the table displays columns from $config["display_fields"] in the order they appear in here)
+$fieldIndex = 0;
 foreach ($module->getSubSettings("display_fields") as $display_field) {
     if (empty($display_field["display_field_name"])) continue;
 
-    if ($Proj->isFormStatus($display_field["display_field_name"])) {
-        $config["display_fields"][$display_field["display_field_name"]] = [
+    $field_name = $display_field["display_field_name"];
+    $form_name = $metadata["fields"][$field_name]["form"];
+    $data_fields[] = $field_name;
+
+    if ($Proj->isFormStatus($field_name)) {
+        $config["display_fields"][$field_name] = [
             "display" => true,
             "is_form_status" => true,
-            "element_validation_type" => $Proj->metadata[$display_field["display_field_name"]]["element_validation_type"],
-            "label" => $Proj->forms[$Proj->metadata[$display_field["display_field_name"]]["form_name"]]["menu"] . " Status",
+            "element_validation_type" => $Proj->metadata[$field_name]["element_validation_type"],
+            "label" => $Proj->forms[$form_name]["menu"] . " Status",
             "dictionary_values" => $metadata["form_statuses"]
         ];
     } else {
-        $config["display_fields"][$display_field["display_field_name"]] = [
+        $config["display_fields"][$field_name] = [
             "display" => true,
-            "element_validation_type" => $Proj->metadata[$display_field["display_field_name"]]["element_validation_type"],
-            "label" => $module->getDictionaryLabelFor($display_field["display_field_name"])
+            "element_validation_type" => $Proj->metadata[$field_name]["element_validation_type"],
+            "label" => $module->getDictionaryLabelFor($field_name),
+            "form_name" => $form_name
         ];
+        $data_fields[] = $form_name . "_complete";
     }
+
+    //skip sorting if any of the fields for sorting are empty, to ensure everything is filled out
+    $sortOnField = $display_field['display_field_sort_on_field'] === true;
+    $emptySortFields = empty($display_field['display_field_sort_direction']) || empty($display_field['display_field_sort_priority']);
+    //report incorrect configuration of sorting
+    if($sortOnField && $emptySortFields) {
+        $config["errors"][] = "All sort values needed for a field \"{$field_name}\" are not configured. Either deselect it for sorting or fill in missing values.";
+    }
+
+    //if no fields are empty (the priority has to be 1 or greater) AND sort direction isn't set to "NONE", then we can include this field in sorting
+    if($sortOnField && !$emptySortFields && (!$display_field['display_field_sort_direction'] !== "NONE")) {
+        //this field should be added to the sorting list
+        $fieldSortingInfo[] = ["field_index" => $fieldIndex, "direction" => $display_field['display_field_sort_direction'], "priority" => $display_field['display_field_sort_priority']];
+    }
+
+    //increment this after all logic dealing with the field
+    $fieldIndex++;
 }
+
+//sort the array, by reference, according to priority (lower priorities first, as people order things starting at 1)
+usort($fieldSortingInfo, function($a, $b) {
+    if($a['priority'] == $b['priority']) {
+        return 0;
+    }
+    return $a['priority'] < $b['priority'] ? -1 : 1;
+});
+//convert array for DataTables format: [columnIndex, asc/desc]
+$fieldSortingInfo = array_map(function($fieldInfo){
+    return [$fieldInfo['field_index'], $fieldInfo['direction']];
+}, $fieldSortingInfo);
+
 
 if ($config["contact_attempts"]["display"] === true) {
     $config["display_fields"]["contact_attempts"] = [
@@ -196,8 +272,10 @@ if ($config["contact_attempts"]["display"] === true) {
 
 $module->addTime('before getData');
 
+$data_fields = array_unique($data_fields);
 $data = \REDCap::getData([
     "return_format" => "array",
+    "fields" => $data_fields,
     "groups" => $config["user_dag"],
     "exportDataAccessGroups" => $config["exportDataAccessGroups"],
 ]);
@@ -205,8 +283,6 @@ $data = \REDCap::getData([
 $module->addTime('after getData');
 
 $results = [];
-
-$dd_display_filter = $module->getDictionaryValuesFor($config["selected_display_filter"]);
 
 $contact_result_form = $metadata["fields"]["contact_result"]["form"];
 $contact_result_form_events = array_reverse($metadata["forms"][$contact_result_form]["event_info"],true);
@@ -223,14 +299,12 @@ foreach ($data as $record_id => $record) {
         "dashboard_url" => $dashboard_url
     ];
     // manually process filter variable, in case it isn't displayed
-    if (!empty($config["selected_display_filter"])) {
-        $field_form_name = $metadata["fields"][$config["selected_display_filter"]]["form"];
-        $field_form_event_id = array_reverse($metadata["forms"][$field_form_name]["event_info"],true);
-        foreach ($field_form_event_id as $ev_id => $event_info) {
-            if ($field_form_event_id[$ev_id]["repeating"] == 1) {
-                if (array_key_exists($field_form_name, $record["repeat_instances"][$ev_id])) {
-                    $filter_result = end($record["repeat_instances"][$ev_id][$field_form_name])[$config["selected_display_filter"]];
-                    $record_info[$config["selected_display_filter"]] = [
+    if (!empty($config["filter_field"]["field_name"])) {
+        foreach ($config["filter_field"]["form_events"] as $ev_id => $event_info) {
+            if ($event_info["repeating"] == 1) {
+                if (array_key_exists($config["filter_field"]["form_name"], $record["repeat_instances"][$ev_id])) {
+                    $filter_result = end($record["repeat_instances"][$ev_id][$config["filter_field"]["form_name"]])[$config["filter_field"]["field_name"]];
+                    $record_info[$config["filter_field"]["field_name"]] = [
                         "raw" => $filter_result
                     ];
                     break;
@@ -243,26 +317,26 @@ foreach ($data as $record_id => $record) {
                     if (count($temp_array_filter_array) < 2) {
                         continue;
                     } else {
-                        $filter_result = end($record["repeat_instances"][$ev_id][null])[$config["selected_display_filter"]];
-                        $record_info[$config["selected_display_filter"]] = [
+                        $filter_result = end($record["repeat_instances"][$ev_id][null])[$config["filter_field"]["field_name"]];
+                        $record_info[$config["filter_field"]["field_name"]] = [
                             "raw" => $filter_result
                         ];
                         break;
                     }
                 }
             } else {
-                $complete_field = $field_form_name . "_complete";
+                $complete_field = $config["filter_field"]["form_name"] . "_complete";
                 if ($record[$ev_id][$complete_field] == '') {
                     continue;
                 } else {
-                    $filter_result = $record[$ev_id][$config["selected_display_filter"]];
+                    $filter_result = $record[$ev_id][$config["filter_field"]["field_name"]];
                     if (is_array($filter_result)) {
                         $filter_result = array_filter($filter_result, function($v) {
                             return $v === "1";
                         });
                         $filter_result = implode(",", array_keys($filter_result));
                     }
-                    $record_info[$config["selected_display_filter"]] = [
+                    $record_info[$config["filter_field"]["field_name"]] = [
                         "raw" => $filter_result
                     ];
                     break;
@@ -313,7 +387,6 @@ foreach ($data as $record_id => $record) {
     }
 
     foreach ($config["display_fields"] as $field_name => $field_info) {
-
 
         // do not attempt to process fields marked as 'ignore'
         // these fields are handled outside this loop
@@ -457,8 +530,8 @@ $module->setTemplateVariable("data", $results);
 $module->setTemplateVariable("contact_result_metadata", $contact_result_metadata);
 $module->setTemplateVariable("ajax_url",$module->getUrl("save_ajax.php",false,true));
 $module->setTemplateVariable("call_list_selections", json_encode($call_list_selections));
-$module->setTemplatevariable("filter_dropdown_options", $dd_display_filter);
-$module->setTemplatevariable("display_title", $config["display_title"]);
+//A variable used to inject into DataTables to set the default sorting for the table based on configured fields
+$module->setTemplateVariable("call_list_field_sorting", json_encode($fieldSortingInfo));
 
 echo "<link rel='stylesheet' type='text/css' href='" . $module->getUrl("css/call_list.css") . "' />";
 

@@ -27,11 +27,12 @@
             <div class="col">
                 <h5>{$config["display_title"]}</h5>
             </div>
-            {if !empty($config["selected_display_filter"])}
+            {if !empty($config["filter_field"])}
                 <div class="col-auto">
+                    <p class="my-1 font-weight-bold">{$config["filter_field"]["field_label"]}</p>
                     <select id="ddlfilter" class="form-control" style="width: 300px">
-                        <option value="">Select Filter</option>
-                        {foreach from=$filter_dropdown_options key=k item=v}
+                        <option value="">--</option>
+                        {foreach from=$config["filter_field"]["field_values"] key=k item=v}
                             <option value="{$k}">{$v}</option>
                         {/foreach}
                     </select>
@@ -102,7 +103,7 @@
             </thead>
             <tbody>
             {foreach from=$data key=record_id item=record}
-                <tr class="{$record["contact_result"]["status"]}" data-contact-result="{$record["contact_result"]["raw"]}" data-dropdown-filter="{$record[$config["selected_display_filter"]]["raw"]}">
+                <tr class="{$record["contact_result"]["status"]}" data-contact-result="{$record["contact_result"]["raw"]}" data-dropdown-filter="{$record[$config["filter_field"]["field_name"]]["raw"]}">
                     {foreach from=$config["display_fields"] key=field_name item=field_info}
                         {if $field_info["display"] === true}
                             <td{if !empty($record[$field_name]["__SORT__"])} data-sort="{$record[$field_name]["__SORT__"]}"{/if}>
@@ -151,13 +152,17 @@
                 var selected_status_contact_result = $("input.contact-result:checked").map(function () {
                     return $(this).val() + "";
                 }).get();
-                var selected_status_dropdown_list = $("#ddlfilter :selected").map(function () {
-                    if($(this).val()!=""){
-                        return $(this).val() + "";
-                    }
-                }).get();
+                var selected_status_dropdown_list = $("#ddlfilter").val();
 
-                return (selected_status_contact_result.length === 0 || selected_status_contact_result.indexOf( row_status_contact_result) >= 0) && (selected_status_dropdown_list.length === 0 || selected_status_dropdown_list.indexOf(row_status_dropdown_filter) >= 0 || row_status_dropdown_filter.includes(selected_status_dropdown_list[0])) ;
+                return (
+                    (   // row status matches one of the selected checkboxes
+                        selected_status_contact_result.length === 0 ||
+                        selected_status_contact_result.indexOf(row_status_contact_result) >= 0)
+                    ) &&
+                    (   // row value matches selected filter value
+                        selected_status_dropdown_list.length === 0 ||
+                        selected_status_dropdown_list === row_status_dropdown_filter
+                    ) ;
             }
         );
 
@@ -185,7 +190,10 @@
                 });
                 let dropdownSelections = { };
                 dropdownSelections[$('#ddlfilter').attr('id')] = $('#ddlfilter').find(":selected").val();
-                let callListSelections = { checkboxSelections,dropdownSelections };
+                let callListSelections = {
+                    'checkboxSelections': checkboxSelections,
+                    'dropdownSelections': dropdownSelections
+                };
                 $.ajax({
                     type: 'POST',
                     url: '{$ajax_url}',
@@ -205,7 +213,8 @@
                 initComplete: function () {
                     $("#cl-table").css('width', '100%').show();
                     $("#cl-table-ph").hide();
-                }
+                },
+                order: {$call_list_field_sorting}
             });
 
             $('input[type="checkbox"]').on('change', function () {
