@@ -17,6 +17,8 @@ This module does not yet support arms
 
 - REDCap
   - 8.11.7
+  - 9.6.1
+  - *(and most versions inbetween)*
 - PHP
   - This module has been tested against all major versions of PHP that are supported by REDCap >= 8.0.0
 
