@@ -153,14 +153,14 @@
                     return $(this).val() + "";
                 }).get();
                 var selected_status_dropdown_list = $("#ddlfilter").val();
-
+				
                 return (
                     (   // row status matches one of the selected checkboxes
                         selected_status_contact_result.length === 0 ||
                         selected_status_contact_result.indexOf(row_status_contact_result) >= 0)
                     ) &&
                     (   // row value matches selected filter value
-                        selected_status_dropdown_list.length === 0 ||
+                        selected_status_dropdown_list === undefined || selected_status_dropdown_list === "" ||
                         selected_status_dropdown_list === row_status_dropdown_filter
                     ) ;
             }
@@ -214,7 +214,10 @@
                     $("#cl-table").css('width', '100%').show();
                     $("#cl-table-ph").hide();
                 },
-                order: {$call_list_field_sorting}
+                order: {$call_list_field_sorting},
+                lengthMenu: [10, 25, 50, 100, 150, 200, 500],
+                iDisplayLength: {$config["show_entries_number"]}
+
             });
 
             $('input[type="checkbox"]').on('change', function () {

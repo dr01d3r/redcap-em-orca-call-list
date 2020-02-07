@@ -42,6 +42,8 @@ This module does not yet support arms
   - To get the contact attempts to show you must use variable name `call_date` and this variable must be on a repeating form.
 - Display the title of the table:  
   - Name the table that fits your project
+- Specify the number of results per page to display in the table
+  - 10 (default), 25, 50, 100, 150, 200, 500
 - Additional filters for call list:
   - Allows to filter the whole data table by one variable.  
 - Select the fields to display

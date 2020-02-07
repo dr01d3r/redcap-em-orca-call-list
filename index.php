@@ -11,6 +11,7 @@ $config = [
     "exportDataAccessGroups" => false,
     "has_repeating_forms" => $Proj->hasRepeatingForms(),
     "display_title" => $module->getProjectSetting("display_title"),
+    "show_entries_number" => $module->getProjectSetting("display_entries_number"),
     "contact_attempts" => [
         "display" => $module->getProjectSetting("display_contact_attempts"),
         "field_name" => "call_date",
@@ -62,6 +63,9 @@ $fieldSortingInfo = [];
 
 if (empty($config["display_title"])) {
     $config["display_title"] = "Orca Call List";
+}
+if (empty($config["show_entries_number"])) {
+    $config["show_entries_number"] = 10;
 }
 
 // add some handling for DAGs, if the project uses them
