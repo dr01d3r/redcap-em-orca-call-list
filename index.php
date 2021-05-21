@@ -7,11 +7,14 @@ $module->initializeSmarty();
 $module->addTime('init');
 
 $config = [
+    "submitted" => $module->IsPostRequest(),//if this form has been submitted to get results
     "user_dag" => null,
     "exportDataAccessGroups" => false,
     "has_repeating_forms" => $Proj->hasRepeatingForms(),
     "display_title" => $module->getProjectSetting("display_title"),
-    "show_entries_number" => $module->getProjectSetting("display_entries_number"),
+    "requested_page" => 1,//not used currently, but saved for future enhancements
+    "show_entries_number" => $module->getProjectSetting("display_entries_number"),//the project setting for the default number of records to show (could bve anything besides the options though - so dont validate against the following options list)
+    "show_entries_options" => [10, 25, 50, 100, 150, 200, 500],//the page length to show for number of records
     "contact_attempts" => [
         "display" => $module->getProjectSetting("display_contact_attempts"),
         "field_name" => "call_date",
@@ -21,8 +24,19 @@ $config = [
             "EVE" => [ "begin" => "18:00:00", "end" => "24:00:00", "label" => "18:00 - 23:59" ]
         ]
     ],
-    "display_fields" => [],
+    "display_fields" => []
 ];
+if (empty($config["display_title"])) {
+    $config["display_title"] = "Orca Call List";
+}
+if (empty($config["show_entries_number"])) {
+    $config["show_entries_number"] = 10;
+}
+
+$pageState = $module->getSavedDataByName('page_state');
+if(empty($pageState)) {
+    $pageState = $module::DEFAULT_EMPTY_PAGESTATE;
+}
 
 $data_fields = [
     "call_date",
@@ -61,13 +75,6 @@ $metadata = [
 // $config["display_fields"][display_field_sort_direction / display_field_sort_priority / display_field_sort_on_field]
 $fieldSortingInfo = [];
 
-if (empty($config["display_title"])) {
-    $config["display_title"] = "Orca Call List";
-}
-if (empty($config["show_entries_number"])) {
-    $config["show_entries_number"] = 10;
-}
-
 // add some handling for DAGs, if the project uses them
 if (count($Proj->getGroups()) > 0) {
     $config["groups"] = array_combine($Proj->getUniqueGroupNames(), $Proj->getGroups());
@@ -79,14 +86,13 @@ if (count($Proj->getGroups()) > 0) {
     }
 }
 
-// status color mapping
+// status color mapping id=>color class
 // [1] => Appointment Scheduled
 // [2] => Busy
 // [3] => Call back with date
 // [4] => Call back without date
 // [5] => Left Message
 // [6] => Will call us
-
 $dd_contact_result = $module->getDictionaryValuesFor("contact_result");
 $contact_result_colors = [
     "1" => "cl-green",
@@ -113,13 +119,15 @@ foreach ($dd_contact_result as $ck => $cv) {
 /*
 * Build the Form/Field Metadata
 * This is necessary for knowing where to find record
-* values (i.e. repeating/non-repeating forms)
+* values (i.e. repeating/non-repeating forms/events)
 */
 foreach ($Proj->forms as $form_name => $form_data) {
     $metadata["forms"][$form_name] = [
         "event_info"=>[]
     ];
     foreach ($form_data["fields"] as $field_name => $field_info) {
+        //field names ($field_name) cannot be duplicated in ANY form in the project, so this is safe
+        //this represents a list of ALL fields on ANY form in the project, so you can lookup a form name based on the field name
         $metadata["fields"][$field_name] = [
             "form" => $form_name,
             "form_fields"=>$form_data["fields"]
@@ -135,6 +143,7 @@ foreach ($Proj->eventsForms as $event_id => $event_forms) {
     }
 }
 
+//sets appropriate forms as repeating, so this info is known later
 if ($config["has_repeating_forms"]) {
     foreach ($Proj->getRepeatingFormsEvents() as $event_id => $event_forms) {
         if($event_forms == "WHOLE") { // when event is repeating it returns string "WHOLE"
@@ -148,6 +157,7 @@ if ($config["has_repeating_forms"]) {
         }
         else
         {
+            //when event is not repeating
             foreach ($event_forms as $form_name => $value) {
                 $metadata["forms"][$form_name]["event_info"][$event_id]["repeating"] = true;
             }
@@ -155,6 +165,7 @@ if ($config["has_repeating_forms"]) {
     }
 }
 
+//the extra filter that can be configured in module settings
 $filter_field = $module->getProjectSetting("display_filter_fields");
 if (!empty($filter_field)) {
     $filter_field_values = [];
@@ -163,22 +174,26 @@ if (!empty($filter_field)) {
         case "select":
         case "radio":
         case "checkbox":
+            //get the configured dictionary values for the checkbox field
             $filter_field_values = $module->getDictionaryValuesFor($filter_field);
             break;
         case "yesno":
         case "truefalse":
+            //get our custom dictionary values for our custom field type
             $filter_field_values = $metadata["custom_dictionary_values"][$Proj->metadata[$filter_field]["element_type"]];
             break;
         default: break;
     }
+    //store info for the extra filter field
     $config["filter_field"] = [
         "field_name" => $filter_field,
         "field_label" => $module->getDictionaryLabelFor($filter_field),
         "field_values" => $filter_field_values,
 
-        "form_name" => $metadata["fields"][$filter_field]["form"],
-        "form_events" => [],
+        "form_name" => $metadata["fields"][$filter_field]["form"],//the form this field occurs on (will only be ONE form, as field names are UNIQUE across a project's forms)
+        "form_events" => []
     ];
+    //get the form events for our extra filter, sorted in reverse order (so the newest is at the front)
     $config["filter_field"]["form_events"] = array_reverse($metadata["forms"][$config["filter_field"]["form_name"]]["event_info"],true);
 
     $data_fields[] = $filter_field;
@@ -251,10 +266,12 @@ if ($config["contact_attempts"]["display"] === true) {
     ];
 }
 
+//if there are no display fields configured for this module instance, we want to bail
 if (empty($config["display_fields"])) {
     $config["errors"][] = "Display fields not yet been configured.  Please go to the <b>" . $lang["global_142"] . "</b> area in the project sidebar to configure them.";
 }
 
+//if we want to display contact attempts on the table
 if ($config["contact_attempts"]["display"] === true) {
     $field_name = $config["contact_attempts"]["field_name"];
     $field_form_name = $metadata["fields"][$field_name]["form"];
@@ -266,32 +283,86 @@ if ($config["contact_attempts"]["display"] === true) {
         }
     }
     if ($repeatable_count < 1) {
-        $config["display_fields"]["contact_attempts"]["display"] = false;
+        unset($config["display_fields"]["contact_attempts"]);
         $config["errors"][] = "Unable to aggregate contact attempts ('$field_name') because the '$field_form_name' form is not repeating";
     } else if ($Proj->metadata[$field_name]["element_validation_type"] !== "datetime_mdy") {
-        $config["display_fields"]["contact_attempts"]["display"] = false;
+        unset($config["display_fields"]["contact_attempts"]);
         $config["errors"][] = "Unable to aggregate contact attempts because the '$field_name' is not of the right validation type ('datetime_mdy')";
+    } else {
+        $ix_contact_attempts = array_search("contact_attempts", array_keys($config["display_fields"]));
+        $config["columnDefs"][] = [
+            "searchable" => false,
+            "orderable" => false,
+            "targets" => $ix_contact_attempts
+        ];
     }
 }
 
-$module->addTime('before getData');
+//used for checking against filters
+//out of all fields we gathered before, fetch the form this field is on (as fields are ONLY on one form as thy are unique across a project)
+$contact_result_form = $metadata["fields"]["contact_result"]["form"];
+//get the contact result field's form events, in reverse order so the newest is at the front
+$contact_result_form_events = array_reverse($metadata["forms"][$contact_result_form]["event_info"],true);
 
+$data = [];
+$filterParams = [
+    "selected_filter_field_ids" => [],
+    "extra_filter_field_value" => "",
+    "extra_filter_field_name" => ""
+];
+
+//merge in any pageState values
+if(!empty($pageState["call_list_selections"]["checkboxSelections"])){
+    //ensure we remove IDs marked as false (not selected) (and use == in case some are a string)
+    $filterIDList = array_filter($pageState["call_list_selections"]["checkboxSelections"], function($v, $k){return $v == true; }, ARRAY_FILTER_USE_BOTH);
+    //we just want the IDs that were true
+    $filterIDList = array_keys($filterIDList);
+    $filterParams["selected_filter_field_ids"] = $filterIDList;
+}
+
+if(!empty($pageState["call_list_selections"]["dropdownSelections"]['ddlfilter'])){
+    $filterParams["extra_filter_field_value"] = $pageState["call_list_selections"]["dropdownSelections"]['ddlfilter'];
+}
+$filterParams["extra_filter_field_name"] = $config["filter_field"]['field_name'];
+
+if($config['submitted']){//if this is a POST
+    $postedData = $_POST;//just to avoid modifying the post variable global
+    //collect posted data
+    //limit requested page (currently not used, but left for future improvements)
+    $req_page = !empty($postedData['requested_page']) ? $postedData['requested_page'] : 1;
+    if(!is_numeric($req_page) || intval($req_page)<=0) {
+        $req_page = 1;
+    }
+    $config['requested_page'] = $req_page;
+
+    //limit the requested number of records per page - not implemented yet, but here for future improvement
+    //assumes config has at least 1 entry in 'show_entries_options' array of possible options
+    $page_len = !empty($postedData['show_entries_number']) ? $postedData['show_entries_number'] : $config['show_entries_options'][0];
+    if(!is_numeric($page_len) || intval($page_len)<=0) {
+        $page_len = $config['show_entries_options'][0];
+    }
+    $config['show_entries_number'] = $page_len;
+
+    $filterParams["selected_filter_field_ids"] = $postedData["selected_filter_field_ids"];
+    $filterParams["extra_filter_field_value"] = $postedData["extra_filter_field_value"];
+    $filterParams["extra_filter_field_name"] = $postedData["extra_filter_field_name"];
+}
+
+//get record data to filter down
+$module->addTime('before getData');//start a timer before we fetch data
 $data_fields = array_unique($data_fields);
 $data = \REDCap::getData([
     "return_format" => "array",
     "fields" => $data_fields,
     "groups" => $config["user_dag"],
-    "exportDataAccessGroups" => $config["exportDataAccessGroups"],
+    "exportDataAccessGroups" => $config["exportDataAccessGroups"]
 ]);
+$module->addTime('after getData');//get the time after we fetch to calculate the elapsed time later
 
-$module->addTime('after getData');
-
-$results = [];
-
-$contact_result_form = $metadata["fields"]["contact_result"]["form"];
-$contact_result_form_events = array_reverse($metadata["forms"][$contact_result_form]["event_info"],true);
-
+$results = [];//the result records we want to return
 foreach ($data as $record_id => $record) {
+    $includeRecordInResults = true;
+
     $dashboard_url = APP_PATH_WEBROOT . "DataEntry/record_home.php?" . http_build_query([
             "pid" => $module->getPid(),
             "id" => $record_id
@@ -302,6 +373,7 @@ foreach ($data as $record_id => $record) {
         ],
         "dashboard_url" => $dashboard_url
     ];
+
     // manually process filter variable, in case it isn't displayed
     if (!empty($config["filter_field"]["field_name"])) {
         foreach ($config["filter_field"]["form_events"] as $ev_id => $event_info) {
@@ -313,6 +385,7 @@ foreach ($data as $record_id => $record) {
                     ];
                     break;
                 } else {
+                    //longitudinal projects--eventIds repeat
                     $latest_data = end($record["repeat_instances"][$ev_id][null]);
                     $common_form_fields = array_intersect_key($latest_data,$metadata["fields"][$field_name]["form_fields"]);
                     $temp_array_filter_array = array_filter($common_form_fields, function($v) {
@@ -482,6 +555,29 @@ foreach ($data as $record_id => $record) {
         $record_info[$field_name]["value"] = $field_value;
     }
 
+    //filter checks here, to determine record inclusion in result set
+    //loop over all contact result options, and see if they exist in the posted data list
+    foreach ($contact_result_metadata as $contactResult) {
+        //if this contact result ID was provided as a filter value, and then check if the provided value was true
+        if(in_array($contactResult['key'], $filterParams['selected_filter_field_ids']) ) {
+            //filter was posted and selected
+            //now check if record has filter
+            $includeRecordInResults = $record_info['contact_result']['raw'] == $contactResult['key'];
+
+            if($includeRecordInResults) {
+                break;
+            }
+        }
+    }
+
+    //do a sanity check to ensure the posted field is the filter field configured for this module instance
+    //skip doing anything with the extra field if it's empty or the prior filters excluded this record
+    if($includeRecordInResults && ($filterParams['extra_filter_field_value'] !== "") && ($config["filter_field"]['field_name'] === $filterParams['extra_filter_field_name'])) {
+        //use the filter field name, to get at the right value of the record info
+        $recordFilterFieldValue = $record_info[$config["filter_field"]['field_name']]['raw'];
+        $includeRecordInResults = $recordFilterFieldValue == $filterParams['extra_filter_field_value'];
+    }
+
     // display aggregate contact attempts if setting is checked
     if ($config["contact_attempts"]["display"] === true) {
         $field_name = $config["contact_attempts"]["field_name"];
@@ -506,41 +602,35 @@ foreach ($data as $record_id => $record) {
             }
         }
 
+        //loop through to eventually print to table
         foreach ($contact_attempts as $attempt => $count) {
             $contact_attempts[$attempt] = "$attempt ($count)";
         }
         $record_info["contact_attempts"]["value"] = $contact_attempts;
     }
-    // add record data to the full dataset
-    $results[$record_id] = $record_info;
-}
 
-// assign to local variable so it can be piped into a string
-$username = USERID;
-$parameter_fields = $module->getDictionaryValuesFor("contact_result");
-$parameter_fields["ddlfilter"] = "";
-// get all the logs for this user.  in this case, there should only be 1
-$module_logs= $module->getLogs(array_keys($parameter_fields), "username = '$username'");
-$call_list_selections = [];
-foreach ($module_logs as $k=> $v) {
-    foreach ($v["parameters"] as $key => $val) {
-        $call_list_selections[$key] = $val;
+    // add record data to the full dataset if it passed any filtering
+    if($includeRecordInResults) {
+        $results[$record_id] = $record_info;
     }
-}
+}//end of looping through records
 
 $module->addTime("post processing");
 $module->setTemplateVariable("config", $config);
 $module->setTemplateVariable("data", $results);
+$module->setTemplateVariable("page_state", $pageState);
+
 $module->setTemplateVariable("contact_result_metadata", $contact_result_metadata);
-$module->setTemplateVariable("ajax_url",$module->getUrl("save_ajax.php",false,true));
-$module->setTemplateVariable("call_list_selections", json_encode($call_list_selections));
+$module->setTemplateVariable("save_page_state_url", $module->getUrl("save_ajax.php", false, true));
 //A variable used to inject into DataTables to set the default sorting for the table based on configured fields
-$module->setTemplateVariable("call_list_field_sorting", json_encode($fieldSortingInfo));
+$module->setTemplateVariable("call_list_field_sorting", $fieldSortingInfo);
 
 echo "<link rel='stylesheet' type='text/css' href='" . $module->getUrl("css/call_list.css") . "' />";
 
 $module->displayTemplate("orca_call_list.tpl");
 
 $module->addTime("done");
+
 $module->outputTimerInfo();
+
 require_once APP_PATH_DOCROOT . "ProjectGeneral/footer.php";

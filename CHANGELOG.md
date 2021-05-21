@@ -1,3 +1,5 @@
+## 1.1.2 (2020-06-17)
+- Add speed
 ## 1.1.1 (2020-02-06)
 - Added ability to configure the number of rows per page that display in the results table (default: 10)
 - Fixed a bug that would prevent the data table from loading properly if a custom filter field was not specified.
