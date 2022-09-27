@@ -1,7 +1,8 @@
 ## 1.3.1
 - Fixed usage of "raw" vs "value" data source in handling filter logic when detecting of "No Result" is selected. Was a problem when "Contact Result" isn't selected in the module config (REDCap front-end), and would return invalid results even if you selected it.
 ## 1.3.0
-
+- Upgraded Smarty library
+- Added configuration option to prevent empty search, for performance reasons in large projects
 ## 1.2.1
 - Added support for searching for records with NO contact (currently, selecting no filters returns everything)
 - Prevent page re-submit when back/refresh used, to prevent re-searching -- for performance reasons
