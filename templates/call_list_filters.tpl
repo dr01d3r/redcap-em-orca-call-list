@@ -34,6 +34,11 @@
             </div>
         </div>
         <div class="row">
+            <div class="form-check col-3 mb-1 ml-3">
+                <input class="form-check-input" type="checkbox" name="selected_filter_field_ids[]" id="filter_field_id_no_contact" value="no_contact">
+                <label class="form-check-label" for="filter_field_id_no_contact">No Contact Result</label>
+            </div>
+
             {*Setting up check boxes to select multiple statuses*}
             {foreach from=$contact_result_metadata key=k item=v}
                 <div class="form-check col-3 mb-1 ml-3">

@@ -28,6 +28,11 @@
                 var wantedPage = table.page();
                 console.log('Clicked DataTables page: '+wantedPage);
             });
+
+            // disable form resubmit on refresh/back
+            if(window.history.replaceState){
+                window.history.replaceState(null, null, window.location.href);
+            }
         }
 
         function rememberSelection() {
@@ -69,10 +74,10 @@
                 },
                 columnDefs: [
                     {
-                        // TODO why is this defaulted to be non-searchable
+                        // don't need the button to be orderable or searchable
                         "searchable": false,
                         "orderable": false,
-                        targets: {count($filter_data["display_fields"])}
+                        targets: {count($config["display_fields"])}
                     },
                     {foreach from=$config["columnDefs"] item=def_info}
                     {

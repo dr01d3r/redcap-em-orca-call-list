@@ -27,6 +27,11 @@
       "name": "Jeremy Falk",
       "email": "falk.jeremy@marshfieldresearch.org",
       "institution": "Marshfield Clinic Research Institute"
+    },
+    {
+      "name": "Jordan Roush",
+      "email": "roush.jordan@marshfieldresearch.org",
+      "institution": "Marshfield Clinic Research Institute"
     }
   ],
   "compatibility": {
@@ -59,6 +64,13 @@
       "name": "Display the title of table (default: Orca Call List)",
       "required": false,
       "type": "textbox"
+    },
+    {
+      "key": "prevent_empty_search",
+      "name": "Prevent Empty Search",
+      "required": false,
+      "type": "checkbox",
+      "repeatable": false
     },
     {
       "key": "display_filter_fields",

@@ -30,7 +30,18 @@ class OrcaCallList extends AbstractExternalModule  {
     }
 
     public function redcap_module_link_check_display($project_id, $link) {
-        return true;
+        $configs = $this->getProjectSettings();
+
+        // find a match
+        $linkTitle = $configs["display_title"]["value"];
+        if (isset($linkTitle)) {
+            // modify link per config values
+            $link["name"] = $linkTitle;
+        } else {
+            $link["name"] = "Orca Call List";
+        }
+
+        return $link;
     }
 
     function  display_user_fullname() {

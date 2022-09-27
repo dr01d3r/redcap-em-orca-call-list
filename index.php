@@ -325,6 +325,13 @@ if(!empty($pageState["call_list_selections"]["dropdownSelections"]['ddlfilter'])
 }
 $filterParams["extra_filter_field_name"] = $config["filter_field"]['field_name'];
 
+$prevent_empty_search = $module->getProjectSetting("prevent_empty_search");
+$gather_data = true;
+
+if($prevent_empty_search === true){
+    $gather_data = false;
+}
+
 if($config['submitted']){//if this is a POST
     $postedData = $_POST;//just to avoid modifying the post variable global
     //collect posted data
@@ -346,101 +353,120 @@ if($config['submitted']){//if this is a POST
     $filterParams["selected_filter_field_ids"] = $postedData["selected_filter_field_ids"];
     $filterParams["extra_filter_field_value"] = $postedData["extra_filter_field_value"];
     $filterParams["extra_filter_field_name"] = $postedData["extra_filter_field_name"];
+    if($prevent_empty_search === true && (!is_null($filterParams["selected_filter_field_ids"]) || $filterParams["extra_filter_field_value"] != '')){
+        $gather_data = true;
+    }
 }
 
+if($gather_data) {
 //get record data to filter down
-$module->addTime('before getData');//start a timer before we fetch data
-$data_fields = array_unique($data_fields);
-$data = \REDCap::getData([
-    "return_format" => "array",
-    "fields" => $data_fields,
-    "groups" => $config["user_dag"],
-    "exportDataAccessGroups" => $config["exportDataAccessGroups"]
-]);
-$module->addTime('after getData');//get the time after we fetch to calculate the elapsed time later
+    $module->addTime('before getData');//start a timer before we fetch data
+    $data_fields = array_unique($data_fields);
+    $data = \REDCap::getData([
+        "return_format" => "array",
+        "fields" => $data_fields,
+        "groups" => $config["user_dag"],
+        "exportDataAccessGroups" => $config["exportDataAccessGroups"]
+    ]);
+    $module->addTime('after getData');//get the time after we fetch to calculate the elapsed time later
 
-$results = [];//the result records we want to return
-foreach ($data as $record_id => $record) {
-    $includeRecordInResults = true;
+    $results = [];//the result records we want to return
+    foreach ($data as $record_id => $record) {
+        $includeRecordInResults = true;
 
-    $dashboard_url = APP_PATH_WEBROOT . "DataEntry/record_home.php?" . http_build_query([
-            "pid" => $module->getPid(),
-            "id" => $record_id
-        ]);
-    $record_info = [
-        "record_id" => [
-            "value" => $record_id
-        ],
-        "dashboard_url" => $dashboard_url
-    ];
+        $dashboard_url = APP_PATH_WEBROOT . "DataEntry/record_home.php?" . http_build_query([
+                "pid" => $module->getPid(),
+                "id" => $record_id
+            ]);
+        $record_info = [
+            "record_id" => [
+                "value" => $record_id
+            ],
+            "dashboard_url" => $dashboard_url
+        ];
 
-    // manually process filter variable, in case it isn't displayed
-    if (!empty($config["filter_field"]["field_name"])) {
-        foreach ($config["filter_field"]["form_events"] as $ev_id => $event_info) {
-            if ($event_info["repeating"] == 1) {
-                if (array_key_exists($config["filter_field"]["form_name"], $record["repeat_instances"][$ev_id])) {
-                    $filter_result = end($record["repeat_instances"][$ev_id][$config["filter_field"]["form_name"]])[$config["filter_field"]["field_name"]];
-                    $record_info[$config["filter_field"]["field_name"]] = [
-                        "raw" => $filter_result
-                    ];
-                    break;
+        // manually process filter variable, in case it isn't displayed
+        if (!empty($config["filter_field"]["field_name"])) {
+            foreach ($config["filter_field"]["form_events"] as $ev_id => $event_info) {
+                if ($event_info["repeating"] == 1) {
+                    if (array_key_exists($config["filter_field"]["form_name"], $record["repeat_instances"][$ev_id])) {
+                        $filter_result = end($record["repeat_instances"][$ev_id][$config["filter_field"]["form_name"]])[$config["filter_field"]["field_name"]];
+                        $record_info[$config["filter_field"]["field_name"]] = [
+                            "raw" => $filter_result
+                        ];
+                        break;
+                    } else {
+                        //longitudinal projects--eventIds repeat
+                        $latest_data = end($record["repeat_instances"][$ev_id][null]);
+                        $common_form_fields = array_intersect_key($latest_data,
+                            $metadata["fields"][$field_name]["form_fields"]);
+                        $temp_array_filter_array = array_filter($common_form_fields, function ($v){
+                            return $v !== null && $v != '';
+                        });
+                        if (count($temp_array_filter_array) < 2) {
+                            continue;
+                        } else {
+                            $filter_result = end($record["repeat_instances"][$ev_id][null])[$config["filter_field"]["field_name"]];
+                            $record_info[$config["filter_field"]["field_name"]] = [
+                                "raw" => $filter_result
+                            ];
+                            break;
+                        }
+                    }
                 } else {
-                    //longitudinal projects--eventIds repeat
-                    $latest_data = end($record["repeat_instances"][$ev_id][null]);
-                    $common_form_fields = array_intersect_key($latest_data,$metadata["fields"][$field_name]["form_fields"]);
-                    $temp_array_filter_array = array_filter($common_form_fields, function($v) {
-                        return $v !== null && $v != '';
-                    });
-                    if (count($temp_array_filter_array) < 2) {
+                    $complete_field = $config["filter_field"]["form_name"] . "_complete";
+                    if ($record[$ev_id][$complete_field] == '') {
                         continue;
                     } else {
-                        $filter_result = end($record["repeat_instances"][$ev_id][null])[$config["filter_field"]["field_name"]];
+                        $filter_result = $record[$ev_id][$config["filter_field"]["field_name"]];
+                        if (is_array($filter_result)) {
+                            $filter_result = array_filter($filter_result, function ($v){
+                                return $v === "1";
+                            });
+                            $filter_result = implode(",", array_keys($filter_result));
+                        }
                         $record_info[$config["filter_field"]["field_name"]] = [
                             "raw" => $filter_result
                         ];
                         break;
                     }
                 }
+            }
+        }
+        // manually process contact_result, in case it isn't displayed,
+        foreach ($contact_result_form_events as $ev_id => $event_info) {
+            if ($contact_result_form_events[$ev_id]["repeating"] == 1) {
+                if (array_key_exists($contact_result_form, $record["repeat_instances"][$ev_id])) {
+                    $contact_result = end($record["repeat_instances"][$ev_id][$contact_result_form])["contact_result"];
+                    $record_info["contact_result"] = [
+                        "raw" => $contact_result,
+                        "status" => $contact_result_metadata[$contact_result]["status"]
+                    ];
+                    break;
+                } else {
+                    $latest_data = end($record["repeat_instances"][$ev_id][null]);
+                    $common_form_fields = array_intersect_key($latest_data,
+                        $metadata["fields"][$field_name]["form_fields"]);
+                    $temp_array_filter_array = array_filter($common_form_fields, function ($v){
+                        return $v !== null && $v != '';
+                    });
+                    if (count($temp_array_filter_array) < 2) {
+                        continue;
+                    } else {
+                        $contact_result = end($record["repeat_instances"][$ev_id][null])["contact_result"];
+                        $record_info["contact_result"] = [
+                            "raw" => $contact_result,
+                            "status" => $contact_result_metadata[$contact_result]["status"]
+                        ];
+                        break;
+                    }
+                }
             } else {
-                $complete_field = $config["filter_field"]["form_name"] . "_complete";
+                $complete_field = $contact_result_form . "_complete";
                 if ($record[$ev_id][$complete_field] == '') {
                     continue;
                 } else {
-                    $filter_result = $record[$ev_id][$config["filter_field"]["field_name"]];
-                    if (is_array($filter_result)) {
-                        $filter_result = array_filter($filter_result, function($v) {
-                            return $v === "1";
-                        });
-                        $filter_result = implode(",", array_keys($filter_result));
-                    }
-                    $record_info[$config["filter_field"]["field_name"]] = [
-                        "raw" => $filter_result
-                    ];
-                    break;
-                }
-            }
-        }
-    }
-    // manually process contact_result, in case it isn't displayed,
-    foreach ($contact_result_form_events as $ev_id => $event_info) {
-        if ($contact_result_form_events[$ev_id]["repeating"] == 1) {
-            if (array_key_exists($contact_result_form,$record["repeat_instances"][$ev_id])) {
-                $contact_result = end($record["repeat_instances"][$ev_id][$contact_result_form])["contact_result"];
-                $record_info["contact_result"] = [
-                    "raw" => $contact_result,
-                    "status" => $contact_result_metadata[$contact_result]["status"]
-                ];
-                break;
-            } else {
-                $latest_data = end($record["repeat_instances"][$ev_id][null]);
-                $common_form_fields = array_intersect_key($latest_data,$metadata["fields"][$field_name]["form_fields"]);
-                $temp_array_filter_array = array_filter($common_form_fields, function($v) {
-                    return $v !== null && $v != '';
-                });
-                if (count($temp_array_filter_array) < 2) {
-                    continue;
-                } else {
-                    $contact_result = end($record["repeat_instances"][$ev_id][null])["contact_result"];
+                    $contact_result = $record[$ev_id]["contact_result"];
                     $record_info["contact_result"] = [
                         "raw" => $contact_result,
                         "status" => $contact_result_metadata[$contact_result]["status"]
@@ -448,176 +474,188 @@ foreach ($data as $record_id => $record) {
                     break;
                 }
             }
-        } else {
-            $complete_field = $contact_result_form . "_complete";
-            if($record[$ev_id][$complete_field] == '') {
+        }
+
+        foreach ($config["display_fields"] as $field_name => $field_info) {
+
+            // do not attempt to process fields marked as 'ignore'
+            // these fields are handled outside this loop
+            if ($field_info["ignore"] === true) {
                 continue;
-            } else {
-                $contact_result = $record[$ev_id]["contact_result"];
-                $record_info["contact_result"] = [
-                    "raw" => $contact_result,
-                    "status" => $contact_result_metadata[$contact_result]["status"]
-                ];
-                break;
             }
-        }
-    }
 
-    foreach ($config["display_fields"] as $field_name => $field_info) {
+            // prep some form info
+            $field_form_name = $metadata["fields"][$field_name]["form"];
 
-        // do not attempt to process fields marked as 'ignore'
-        // these fields are handled outside this loop
-        if ($field_info["ignore"] === true) continue;
+            $field_form_event_id = array_reverse($metadata["forms"][$field_form_name]["event_info"], true);
 
-        // prep some form info
-        $field_form_name = $metadata["fields"][$field_name]["form"];
+            // initialize some helper variables/arrays
+            $field_type = $Proj->metadata[$field_name]["element_type"];
 
-        $field_form_event_id = array_reverse($metadata["forms"][$field_form_name]["event_info"],true);
+            $element_validation_type = $field_info["element_validation_type"];
+            $field_value = null;
+            $form_values = [];
 
-        // initialize some helper variables/arrays
-        $field_type = $Proj->metadata[$field_name]["element_type"];
-
-        $element_validation_type = $field_info["element_validation_type"];
-        $field_value = null;
-        $form_values = [];
-
-        foreach ($field_form_event_id as $ev_id => $event_info) {
-            if ($field_form_event_id[$ev_id]["repeating"] == 1) {
-                if (array_key_exists($field_form_name,$record["repeat_instances"][$ev_id])) {
-                    $form_values = end($record["repeat_instances"][$ev_id][$field_form_name]);
-                    break;
-                } else {
-                    $latest_data = end($record["repeat_instances"][$ev_id][null]);
-                    $common_form_fields = array_intersect_key($latest_data,$metadata["fields"][$field_name]["form_fields"]);
-                    $temp_array_filter_array = array_filter($common_form_fields, function($v) {
-                        return $v !== null && $v != '';
-                    });
-                    if (count($temp_array_filter_array) < 2) {
-                        continue;
-                    } else {
-                        $form_values = end($record["repeat_instances"][$ev_id][null]);
+            foreach ($field_form_event_id as $ev_id => $event_info) {
+                if ($field_form_event_id[$ev_id]["repeating"] == 1) {
+                    if (array_key_exists($field_form_name, $record["repeat_instances"][$ev_id])) {
+                        $form_values = end($record["repeat_instances"][$ev_id][$field_form_name]);
                         break;
-                    }
-                }
-            } else {
-                $complete_field = $field_form_name . "_complete";
-                if ($record[$ev_id][$complete_field] == '') {
-                    continue;
-                } else {
-                    $form_values = $record[$ev_id];
-                    break;
-                }
-            }
-        }
-        // set the raw value of the field
-        $field_value = $form_values[$field_name];
-
-        // further process the field if it is anything other than a free-text field
-        if ($field_info["is_form_status"] === true) {
-            // special value handling for form statuses
-            // REDCap::getData() defaults this value to 0 (Incomplete)
-            $field_value = $metadata["form_statuses"][$field_value];
-        } else if (!in_array($field_type, $metadata["unstructured_field_types"])) {
-            switch ($field_type) {
-                case "select":
-                case "radio":
-                    $field_value = $module->getDictionaryValuesFor($field_name)[$field_value];
-                    break;
-                case "checkbox":
-                    $temp_field_array = [];
-                    $field_value_dd = $module->getDictionaryValuesFor($field_name);
-                    foreach ($field_value as $field_value_key => $field_value_value) {
-                        if ($field_value_value === "1") {
-                            $temp_field_array[$field_value_key] = $field_value_dd[$field_value_key];
-                        }
-                    }
-                    $field_value = $temp_field_array;
-                    break;
-                case "yesno":
-                case "truefalse":
-                    $field_value = $metadata["custom_dictionary_values"][$Proj->metadata[$field_name]["element_type"]][$field_value];
-                    break;
-                default: break;
-            }
-        }
-
-        // call_back_date_time exceeded warning
-        if ($field_name === "call_back_date_time" && !empty($field_value)) {
-            if (strtotime("now") >= strtotime($field_value)) {
-                $record_info[$field_name]["alert"] = true;
-            }
-        }
-        // update field value if this is a known date format
-        if (array_key_exists($element_validation_type, $metadata["date_field_formats"]) && !empty($field_value)) {
-            $record_info[$field_name]["__SORT__"] = strtotime($field_value);
-            $field_value = date_format(date_create($field_value),$metadata["date_field_formats"][$element_validation_type]);
-        }
-        $record_info[$field_name]["value"] = $field_value;
-    }
-
-    //filter checks here, to determine record inclusion in result set
-    //loop over all contact result options, and see if they exist in the posted data list
-    foreach ($contact_result_metadata as $contactResult) {
-        //if this contact result ID was provided as a filter value, and then check if the provided value was true
-        if(in_array($contactResult['key'], $filterParams['selected_filter_field_ids']) ) {
-            //filter was posted and selected
-            //now check if record has filter
-            $includeRecordInResults = $record_info['contact_result']['raw'] == $contactResult['key'];
-
-            if($includeRecordInResults) {
-                break;
-            }
-        }
-    }
-
-    //do a sanity check to ensure the posted field is the filter field configured for this module instance
-    //skip doing anything with the extra field if it's empty or the prior filters excluded this record
-    if($includeRecordInResults && ($filterParams['extra_filter_field_value'] !== "") && ($config["filter_field"]['field_name'] === $filterParams['extra_filter_field_name'])) {
-        //use the filter field name, to get at the right value of the record info
-        $recordFilterFieldValue = $record_info[$config["filter_field"]['field_name']]['raw'];
-        $includeRecordInResults = $recordFilterFieldValue == $filterParams['extra_filter_field_value'];
-    }
-
-    // display aggregate contact attempts if setting is checked
-    if ($config["contact_attempts"]["display"] === true) {
-        $field_name = $config["contact_attempts"]["field_name"];
-        $field_form_name = $metadata["fields"][$field_name]["form"];
-        $field_form_event_id = array_reverse($metadata["forms"][$field_form_name]["event_info"], true);
-        // initialize each group to 0
-        $contact_attempts = array_fill_keys(array_keys($config["contact_attempts"]["ranges"]), 0);
-        foreach ($field_form_event_id as $ev_id => $event_info) {
-            if ($field_form_event_id[$ev_id]["repeating"] == 1) {
-                foreach ($record["repeat_instances"][$ev_id][$field_form_name] as $instance => $form_info) {
-                    if (empty($form_info[$field_name])) continue;
-
-                    $contact_attempt = strtotime($form_info[$field_name]);
-                    foreach ($config["contact_attempts"]["ranges"] as $range_key => $range_info) {
-                        if ($contact_attempt >= strtotime($range_info["begin"], $contact_attempt) &&
-                            $contact_attempt < strtotime($range_info["end"], $contact_attempt)) {
-                            $contact_attempts[$range_key]++;
+                    } else {
+                        $latest_data = end($record["repeat_instances"][$ev_id][null]);
+                        $common_form_fields = array_intersect_key($latest_data,
+                            $metadata["fields"][$field_name]["form_fields"]);
+                        $temp_array_filter_array = array_filter($common_form_fields, function ($v){
+                            return $v !== null && $v != '';
+                        });
+                        if (count($temp_array_filter_array) < 2) {
+                            continue;
+                        } else {
+                            $form_values = end($record["repeat_instances"][$ev_id][null]);
                             break;
                         }
                     }
+                } else {
+                    $complete_field = $field_form_name . "_complete";
+                    if ($record[$ev_id][$complete_field] == '') {
+                        continue;
+                    } else {
+                        $form_values = $record[$ev_id];
+                        break;
+                    }
+                }
+            }
+            // set the raw value of the field
+            $field_value = $form_values[$field_name];
+
+            // further process the field if it is anything other than a free-text field
+            if ($field_info["is_form_status"] === true) {
+                // special value handling for form statuses
+                // REDCap::getData() defaults this value to 0 (Incomplete)
+                $field_value = $metadata["form_statuses"][$field_value];
+            } else if (!in_array($field_type, $metadata["unstructured_field_types"])) {
+                switch ($field_type) {
+                    case "select":
+                    case "radio":
+                        $field_value = $module->getDictionaryValuesFor($field_name)[$field_value];
+                        break;
+                    case "checkbox":
+                        $temp_field_array = [];
+                        $field_value_dd = $module->getDictionaryValuesFor($field_name);
+                        foreach ($field_value as $field_value_key => $field_value_value) {
+                            if ($field_value_value === "1") {
+                                $temp_field_array[$field_value_key] = $field_value_dd[$field_value_key];
+                            }
+                        }
+                        $field_value = $temp_field_array;
+                        break;
+                    case "yesno":
+                    case "truefalse":
+                        $field_value = $metadata["custom_dictionary_values"][$Proj->metadata[$field_name]["element_type"]][$field_value];
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            // call_back_date_time exceeded warning
+            if ($field_name === "call_back_date_time" && !empty($field_value)) {
+                if (strtotime("now") >= strtotime($field_value)) {
+                    $record_info[$field_name]["alert"] = true;
+                }
+            }
+            // update field value if this is a known date format
+            if (array_key_exists($element_validation_type, $metadata["date_field_formats"]) && !empty($field_value)) {
+                $record_info[$field_name]["__SORT__"] = strtotime($field_value);
+                $field_value = date_format(date_create($field_value),
+                    $metadata["date_field_formats"][$element_validation_type]);
+            }
+            $record_info[$field_name]["value"] = $field_value;
+        }
+
+        //filter checks here, to determine record inclusion in result set
+        //---------------------------------------------------------------
+
+        //if we don't provide any filters, just include all records, otherwise assume we don't include a record unless it matches a filter
+        if (!empty($filterParams['selected_filter_field_ids'])) {
+            $includeRecordInResults = false;
+        }
+
+        //if we have selected "no_contact" as a filter, first check if we should include the record
+        if (in_array("no_contact",
+                //use the 'raw' value (raw = business logic, value = display purposes), as when in the REDCap module config front-end menu, and Contact Result isn't selected, "value" isn't populated (and hence is empty, even if it's selected as a filter)
+                $filterParams['selected_filter_field_ids']) && (empty($record_info['contact_result']) || empty($record_info['contact_result']['raw']))) {
+            $includeRecordInResults = true;
+        }
+
+        //if we already want to include the record, don't check other filters, as the filters are an "OR" operation (include a record if it matches any filter)
+        if (!$includeRecordInResults) {
+            //loop over all contact result options, and see if they exist in the posted data list
+            foreach ($contact_result_metadata as $contactResult) {
+                //if this contact result ID was provided as a filter value, and then check if the provided value was true
+                if (in_array($contactResult['key'], $filterParams['selected_filter_field_ids'])) {
+                    //filter was posted and selected
+                    //now check if record has filter
+                    $includeRecordInResults = $record_info['contact_result']['raw'] == $contactResult['key'];
+
+                    if ($includeRecordInResults) {
+                        break;
+                    }
                 }
             }
         }
 
-        //loop through to eventually print to table
-        foreach ($contact_attempts as $attempt => $count) {
-            $contact_attempts[$attempt] = "$attempt ($count)";
+        //do a sanity check to ensure the posted field is the filter field configured for this module instance
+        //skip doing anything with the extra field if it's empty or the prior filters excluded this record
+        if ($includeRecordInResults && ($filterParams['extra_filter_field_value'] !== "") && ($config["filter_field"]['field_name'] === $filterParams['extra_filter_field_name'])) {
+            //use the filter field name, to get at the right value of the record info
+            $recordFilterFieldValue = $record_info[$config["filter_field"]['field_name']]['raw'];
+            $includeRecordInResults = $recordFilterFieldValue == $filterParams['extra_filter_field_value'];
         }
-        $record_info["contact_attempts"]["value"] = $contact_attempts;
-    }
 
-    // add record data to the full dataset if it passed any filtering
-    if($includeRecordInResults) {
-        $results[$record_id] = $record_info;
-    }
-}//end of looping through records
+        // display aggregate contact attempts if setting is checked
+        if ($config["contact_attempts"]["display"] === true) {
+            $field_name = $config["contact_attempts"]["field_name"];
+            $field_form_name = $metadata["fields"][$field_name]["form"];
+            $field_form_event_id = array_reverse($metadata["forms"][$field_form_name]["event_info"], true);
+            // initialize each group to 0
+            $contact_attempts = array_fill_keys(array_keys($config["contact_attempts"]["ranges"]), 0);
+            foreach ($field_form_event_id as $ev_id => $event_info) {
+                if ($field_form_event_id[$ev_id]["repeating"] == 1) {
+                    foreach ($record["repeat_instances"][$ev_id][$field_form_name] as $instance => $form_info) {
+                        if (empty($form_info[$field_name])) {
+                            continue;
+                        }
 
-$module->addTime("post processing");
+                        $contact_attempt = strtotime($form_info[$field_name]);
+                        foreach ($config["contact_attempts"]["ranges"] as $range_key => $range_info) {
+                            if ($contact_attempt >= strtotime($range_info["begin"], $contact_attempt) &&
+                                $contact_attempt < strtotime($range_info["end"], $contact_attempt)) {
+                                $contact_attempts[$range_key]++;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //loop through to eventually print to table
+            foreach ($contact_attempts as $attempt => $count) {
+                $contact_attempts[$attempt] = "$attempt ($count)";
+            }
+            $record_info["contact_attempts"]["value"] = $contact_attempts;
+        }
+
+        // add record data to the full dataset if it passed any filtering
+        if ($includeRecordInResults) {
+            $results[$record_id] = $record_info;
+        }
+    }//end of looping through records
+    
+    $module->setTemplateVariable("data", $results);
+    $module->addTime("post processing");
+}
 $module->setTemplateVariable("config", $config);
-$module->setTemplateVariable("data", $results);
 $module->setTemplateVariable("page_state", $pageState);
 
 $module->setTemplateVariable("contact_result_metadata", $contact_result_metadata);
