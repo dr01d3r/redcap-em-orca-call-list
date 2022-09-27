@@ -16,11 +16,11 @@ This module does not yet support arms
 ## Testing & Validation
 
 - REDCap
-  - 8.11.7
-  - 9.6.1
-  - *(and most versions inbetween)*
+  - v12.5.7
 - PHP
-  - This module has been tested against all major versions of PHP that are supported by REDCap >= 8.0.0
+  - v7.4.21
+  
+> **NOTE:** These are the most recent versions tested.  Previous versions should still be supported unless stated otherwise.
 
 ## Permissions
 
@@ -61,7 +61,9 @@ This module does not yet support arms
     - Must be numeric and greater than 0
     - Non-unique priority numbers will sort based on order in the config
   - An alert will be displayed if sort configuration is incorrect
-
+- Callback Date/Time Exceeded: `[call_back_date_time]`
+  - If this hard-coded field name is on the display field list, it will display an alert icon, indicating that date is in the past (past due).
+  - Field must use a date or date/time validation.
 ## Considerations
 
 - There are two hard coded values
