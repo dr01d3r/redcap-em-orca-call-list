@@ -87,7 +87,7 @@ class OrcaCallList extends AbstractExternalModule  {
         $module_logs = $this->getLogs([$pageStateParam], "username = '".USERID."'");
         $returnValue = [];
 
-        function cmpIds($a, $b)
+        uksort($module_logs, function ($a, $b)
         {
             if(!is_numeric($a)) {
                 return -1;
@@ -98,8 +98,7 @@ class OrcaCallList extends AbstractExternalModule  {
             $a_id = intval($a);
             $b_id = intval($b);
             return $a_id - $b_id;
-        }
-        uksort($module_logs, "cmpIds");
+        });
 
         //for every log record
         $foundParam = false;
@@ -149,7 +148,7 @@ class OrcaCallList extends AbstractExternalModule  {
         $returnValue = [];
 
         //sort log entries based on id, so we get the latest record in case there is multiple
-        function cmpIds($a, $b) {
+        uksort($module_logs, function ($a, $b) {
             if(!is_numeric($a)) {
                 return is_numeric($b) ? -1 : 0;
             } elseif(!is_numeric($b)) {
@@ -159,8 +158,7 @@ class OrcaCallList extends AbstractExternalModule  {
             $a_id = intval($a);
             $b_id = intval($b);
             return $a_id - $b_id;
-        }
-        uksort($module_logs, "cmpIds");
+        });
 
         //for every log record
         $foundParam = false;
