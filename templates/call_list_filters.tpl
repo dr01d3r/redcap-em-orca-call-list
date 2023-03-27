@@ -9,7 +9,7 @@
             {if !empty($filter_data["filter_field"])}
                 <div class="col-auto">
                     <p class="my-1 font-weight-bold">{$filter_data["filter_field"]["field_label"]}</p>
-                    <select id="ddlfilter" name="extra_filter_field_value" class="form-control" style="width: 300px">
+                    <select id="ddlfilter" name="extra_filter_field_value" class="form-control form-select" style="width: 300px">
                         <option value="">--</option>
                         {foreach from=$filter_data["filter_field"]["field_values"] key=k item=v}
                             <option value="{$k}">{$v}</option>

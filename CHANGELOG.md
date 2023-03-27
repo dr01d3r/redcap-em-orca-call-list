@@ -1,3 +1,10 @@
+## 1.3.3
+- Fixed a series of bugs that would trigger fatal errors in PHP 8
+- Upgraded to v7 of the module framework
+- Bootstrap 5 compatibility
+- Minor code cleanup and reformatting
+## 1.3.2
+- PHP 8 bugfix
 ## 1.3.1
 - Fixed usage of "raw" vs "value" data source in handling filter logic when detecting of "No Result" is selected. Was a problem when "Contact Result" isn't selected in the module config (REDCap front-end), and would return invalid results even if you selected it.
 ## 1.3.0

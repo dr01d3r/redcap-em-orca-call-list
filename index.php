@@ -1,6 +1,7 @@
 <?php
-
 /** @var \ORCA\OrcaCallList\OrcaCallList $module */
+/** @var Project $Proj */
+
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 
 $module->initializeSmarty();
@@ -34,6 +35,7 @@ if (empty($config["show_entries_number"])) {
 }
 
 $pageState = $module->getSavedDataByName('page_state');
+
 if(empty($pageState)) {
     $pageState = $module::DEFAULT_EMPTY_PAGESTATE;
 }
@@ -106,7 +108,7 @@ $contact_result_metadata = [];
 
 foreach ($dd_contact_result as $ck => $cv) {
     $contact_color = null;
-    if (array_key_exists($ck, $contact_result_colors)) {
+    if (array_key_exists($ck, $contact_result_colors ?? [])) {
         $contact_color = $contact_result_colors[$ck];
     }
     $contact_result_metadata[$ck] = [
@@ -129,11 +131,9 @@ foreach ($Proj->forms as $form_name => $form_data) {
         //field names ($field_name) cannot be duplicated in ANY form in the project, so this is safe
         //this represents a list of ALL fields on ANY form in the project, so you can lookup a form name based on the field name
         $metadata["fields"][$field_name] = [
-            "form" => $form_name,
-            "form_fields"=>$form_data["fields"]
+            "form" => $form_name
         ];
     }
-
 }
 
 foreach ($Proj->eventsForms as $event_id => $event_forms) {
@@ -147,12 +147,8 @@ foreach ($Proj->eventsForms as $event_id => $event_forms) {
 if ($config["has_repeating_forms"]) {
     foreach ($Proj->getRepeatingFormsEvents() as $event_id => $event_forms) {
         if($event_forms == "WHOLE") { // when event is repeating it returns string "WHOLE"
-            foreach ($Proj->eventsForms as $ev_id => $ev_forms) {
-                foreach ($ev_forms as $form_index => $form_name) {
-                    if($ev_id==$event_id) {
-                        $metadata["forms"][$form_name]["event_info"][$ev_id]["repeating"] = true;
-                    }
-                }
+            foreach ($Proj->eventsForms[$event_id] as $form_index => $form_name) {
+                $metadata["forms"][$form_name]["event_info"][$event_id]["repeating"] = true;
             }
         }
         else
@@ -278,7 +274,7 @@ if ($config["contact_attempts"]["display"] === true) {
     $field_form_event_ids = $metadata["forms"][$field_form_name]["event_info"];
     $repeatable_count=0;
     foreach ($field_form_event_ids as $ev_id => $event_info) {
-        if ($field_form_event_ids[$ev_id]["repeating"] == 1) {
+        if ($event_info["repeating"] === true) {
             $repeatable_count++;
         }
     }
@@ -387,45 +383,47 @@ if($gather_data) {
 
         // manually process filter variable, in case it isn't displayed
         if (!empty($config["filter_field"]["field_name"])) {
+            $field_name = $config["filter_field"]["field_name"];
+            $form_name = $config["filter_field"]["form_name"];
             foreach ($config["filter_field"]["form_events"] as $ev_id => $event_info) {
-                if ($event_info["repeating"] == 1) {
-                    if (array_key_exists($config["filter_field"]["form_name"], $record["repeat_instances"][$ev_id])) {
-                        $filter_result = end($record["repeat_instances"][$ev_id][$config["filter_field"]["form_name"]])[$config["filter_field"]["field_name"]];
-                        $record_info[$config["filter_field"]["field_name"]] = [
+                if ($event_info["repeating"] === true) {
+                    if (array_key_exists($form_name, $record["repeat_instances"][$ev_id] ?? [])) {
+                        $filter_result = end($record["repeat_instances"][$ev_id][$form_name])[$field_name];
+                        $record_info[$field_name] = [
                             "raw" => $filter_result
                         ];
                         break;
-                    } else {
+                    } else if (isset($record["repeat_instances"][$ev_id][null])) {
                         //longitudinal projects--eventIds repeat
                         $latest_data = end($record["repeat_instances"][$ev_id][null]);
-                        $common_form_fields = array_intersect_key($latest_data,
-                            $metadata["fields"][$field_name]["form_fields"]);
+
+                        $common_form_fields = array_intersect_key($latest_data, $Proj->forms[$form_name]["fields"]);
                         $temp_array_filter_array = array_filter($common_form_fields, function ($v){
                             return $v !== null && $v != '';
                         });
                         if (count($temp_array_filter_array) < 2) {
                             continue;
                         } else {
-                            $filter_result = end($record["repeat_instances"][$ev_id][null])[$config["filter_field"]["field_name"]];
-                            $record_info[$config["filter_field"]["field_name"]] = [
+                            $filter_result = end($record["repeat_instances"][$ev_id][null])[$field_name];
+                            $record_info[$field_name] = [
                                 "raw" => $filter_result
                             ];
                             break;
                         }
                     }
                 } else {
-                    $complete_field = $config["filter_field"]["form_name"] . "_complete";
+                    $complete_field = $form_name . "_complete";
                     if ($record[$ev_id][$complete_field] == '') {
                         continue;
                     } else {
-                        $filter_result = $record[$ev_id][$config["filter_field"]["field_name"]];
+                        $filter_result = $record[$ev_id][$field_name];
                         if (is_array($filter_result)) {
                             $filter_result = array_filter($filter_result, function ($v){
                                 return $v === "1";
                             });
                             $filter_result = implode(",", array_keys($filter_result));
                         }
-                        $record_info[$config["filter_field"]["field_name"]] = [
+                        $record_info[$field_name] = [
                             "raw" => $filter_result
                         ];
                         break;
@@ -435,18 +433,19 @@ if($gather_data) {
         }
         // manually process contact_result, in case it isn't displayed,
         foreach ($contact_result_form_events as $ev_id => $event_info) {
-            if ($contact_result_form_events[$ev_id]["repeating"] == 1) {
-                if (array_key_exists($contact_result_form, $record["repeat_instances"][$ev_id])) {
+            if ($event_info["repeating"] === true) {
+                if (array_key_exists($contact_result_form, $record["repeat_instances"][$ev_id] ?? [])) {
                     $contact_result = end($record["repeat_instances"][$ev_id][$contact_result_form])["contact_result"];
                     $record_info["contact_result"] = [
                         "raw" => $contact_result,
                         "status" => $contact_result_metadata[$contact_result]["status"]
                     ];
                     break;
-                } else {
+                } else if (isset($record["repeat_instances"][$ev_id][null])) {
                     $latest_data = end($record["repeat_instances"][$ev_id][null]);
                     $common_form_fields = array_intersect_key($latest_data,
-                        $metadata["fields"][$field_name]["form_fields"]);
+                        $Proj->forms[$contact_result_form]["fields"]
+                    );
                     $temp_array_filter_array = array_filter($common_form_fields, function ($v){
                         return $v !== null && $v != '';
                     });
@@ -497,14 +496,15 @@ if($gather_data) {
             $form_values = [];
 
             foreach ($field_form_event_id as $ev_id => $event_info) {
-                if ($field_form_event_id[$ev_id]["repeating"] == 1) {
-                    if (array_key_exists($field_form_name, $record["repeat_instances"][$ev_id])) {
+                if ($event_info["repeating"] === true) {
+                    if (array_key_exists($field_form_name, $record["repeat_instances"][$ev_id] ?? [])) {
                         $form_values = end($record["repeat_instances"][$ev_id][$field_form_name]);
                         break;
-                    } else {
+                    } else if (isset($record["repeat_instances"][$ev_id][null])) {
                         $latest_data = end($record["repeat_instances"][$ev_id][null]);
                         $common_form_fields = array_intersect_key($latest_data,
-                            $metadata["fields"][$field_name]["form_fields"]);
+                            $Proj->forms[$field_form_name]["fields"]
+                        );
                         $temp_array_filter_array = array_filter($common_form_fields, function ($v){
                             return $v !== null && $v != '';
                         });
@@ -565,7 +565,7 @@ if($gather_data) {
                 }
             }
             // update field value if this is a known date format
-            if (array_key_exists($element_validation_type, $metadata["date_field_formats"]) && !empty($field_value)) {
+            if (array_key_exists($element_validation_type, $metadata["date_field_formats"] ?? []) && !empty($field_value)) {
                 $record_info[$field_name]["__SORT__"] = strtotime($field_value);
                 $field_value = date_format(date_create($field_value),
                     $metadata["date_field_formats"][$element_validation_type]);
@@ -584,7 +584,7 @@ if($gather_data) {
         //if we have selected "no_contact" as a filter, first check if we should include the record
         if (in_array("no_contact",
                 //use the 'raw' value (raw = business logic, value = display purposes), as when in the REDCap module config front-end menu, and Contact Result isn't selected, "value" isn't populated (and hence is empty, even if it's selected as a filter)
-                $filterParams['selected_filter_field_ids']) && (empty($record_info['contact_result']) || empty($record_info['contact_result']['raw']))) {
+                $filterParams['selected_filter_field_ids'] ?? []) && (empty($record_info['contact_result']) || empty($record_info['contact_result']['raw']))) {
             $includeRecordInResults = true;
         }
 
@@ -593,7 +593,7 @@ if($gather_data) {
             //loop over all contact result options, and see if they exist in the posted data list
             foreach ($contact_result_metadata as $contactResult) {
                 //if this contact result ID was provided as a filter value, and then check if the provided value was true
-                if (in_array($contactResult['key'], $filterParams['selected_filter_field_ids'])) {
+                if (in_array($contactResult['key'], $filterParams['selected_filter_field_ids'] ?? [])) {
                     //filter was posted and selected
                     //now check if record has filter
                     $includeRecordInResults = $record_info['contact_result']['raw'] == $contactResult['key'];
@@ -621,7 +621,7 @@ if($gather_data) {
             // initialize each group to 0
             $contact_attempts = array_fill_keys(array_keys($config["contact_attempts"]["ranges"]), 0);
             foreach ($field_form_event_id as $ev_id => $event_info) {
-                if ($field_form_event_id[$ev_id]["repeating"] == 1) {
+                if ($event_info["repeating"] === true) {
                     foreach ($record["repeat_instances"][$ev_id][$field_form_name] as $instance => $form_info) {
                         if (empty($form_info[$field_name])) {
                             continue;

@@ -65,14 +65,15 @@ trait ModuleLogUtils {
      * The resulting array will contain all parameters in their own "parameters" array.
      * @param array $parameters
      * @param null $where i.e. "username = 'myusername'"
+     * @param null $sqlParams
      * @return array
      */
-    public function getLogs($parameters = [], $where = null) {
+    public function getLogs($parameters = [], $where = null, $sqlParams = null) {
         $result = [];
 
         $parameters_prefixed = [];
 		foreach ($parameters as $p) {
-            array_push($parameters_prefixed, $this->parameter_prefix . $p);
+            $parameters_prefixed[] = $this->parameter_prefix . $p;
         }
         
 		$fields = implode(', ', array_merge($this->default_log_fields, $parameters_prefixed));
@@ -80,8 +81,11 @@ trait ModuleLogUtils {
         if (!empty($where)) {
             $sql .= " WHERE " . $where;
         }
+        if ($sqlParams != null && !is_array($sqlParams)) {
+            $sqlParams = [$sqlParams];
+        }
         $sql .= " order by timestamp desc";
-        $sql_result = $this->queryLogs($sql);
+        $sql_result = $this->queryLogs($sql, $sqlParams ?? []);
         while($row = $sql_result->fetch_assoc()){
             $result_row = [];
             foreach ($row as $key => $value) {

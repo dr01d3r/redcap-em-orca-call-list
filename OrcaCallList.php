@@ -84,7 +84,7 @@ class OrcaCallList extends AbstractExternalModule  {
     public function getStoredPageState(){
         $pageStateParam = 'page_state';
         // get all the logs for this user.  in this case, there should only be 1 - the call list page state
-        $module_logs = $this->getLogs([$pageStateParam], "username = '".USERID."'");
+        $module_logs = $this->getLogs([$pageStateParam], "username = ?", USERID);
         $returnValue = [];
 
         uksort($module_logs, function ($a, $b)
@@ -126,25 +126,17 @@ class OrcaCallList extends AbstractExternalModule  {
     //saves a piece of data to the module logs, using a named parameter
     //optionally gives ability to remove all old log entries (when the module doesnt care about multiple log entries for a user)
     public function saveDataWithName($data, $name, $removeOldLogEntries = true) {
-        try {
-            $logId = $this->saveLogs('save module data - '.$name, [$name => json_encode($data)]);
-
-            if($removeOldLogEntries){
-                $this->removeLogs("username = '" . USERID . "' and log_id != $logId");
-            }
-
-            return true;
+        $logId = $this->saveLogs('save module data - '.$name, [$name => json_encode($data)]);
+        if($removeOldLogEntries){
+            $this->removeLogs("username = ? and log_id != ?", [ USERID, $logId ]);
         }
-        catch (Exception $ex) {
-            $msg = $ex->getMessage();
-            return false;
-        }
+        return true;
     }
 
     //get data saved to logs, via a name/key
     public function getSavedDataByName($name){
         // get all the logs for this user.  in this case, there should only be 1 - the call list page state
-        $module_logs = $this->getLogs([$name], "username = '".USERID."'");
+        $module_logs = $this->getLogs([$name], "username = ?", USERID);
         $returnValue = [];
 
         //sort log entries based on id, so we get the latest record in case there is multiple

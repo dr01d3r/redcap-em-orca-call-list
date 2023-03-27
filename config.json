@@ -4,8 +4,8 @@
   "description": "A configurable, searchable, call list dashboard",
   "authors": [
     {
-      "name": "Richard Duerr",
-      "email": "duerr.richard@marshfieldresearch.org",
+      "name": "Chris Kadolph",
+      "email": "kadolph.christopher@marshfieldresearch.org",
       "institution": "Marshfield Clinic Research Institute"
     },
     {
@@ -14,32 +14,22 @@
       "institution": "Marshfield Clinic Research Institute"
     },
     {
-      "name": "Chris Kadolph",
-      "email": "kadolph.christopher@marshfieldresearch.org",
-      "institution": "Marshfield Clinic Research Institute"
-    },
-    {
       "name": "Leila Deering",
       "email": "deering.leila@marshfieldresearch.org",
-      "institution": "Marshfield Clinic Research Institute"
-    },
-    {
-      "name": "Jeremy Falk",
-      "email": "falk.jeremy@marshfieldresearch.org",
       "institution": "Marshfield Clinic Research Institute"
     },
     {
       "name": "Jordan Roush",
       "email": "roush.jordan@marshfieldresearch.org",
       "institution": "Marshfield Clinic Research Institute"
+    },
+    {
+      "name": "Richard Duerr",
+      "email": "duerr.richard@marshfieldresearch.org",
+      "institution": "Marshfield Clinic Research Institute"
     }
   ],
-  "compatibility": {
-    "php-version-min": "5.6.0",
-    "php-version-max": "",
-    "redcap-version-min": "8.7.0",
-    "redcap-version-max": ""
-  },
+  "framework-version": 7,
   "permissions": [
     "redcap_data_entry_form"
   ],
