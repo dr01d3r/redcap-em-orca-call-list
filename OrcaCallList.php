@@ -19,21 +19,13 @@ class OrcaCallList extends AbstractExternalModule  {
         "checkboxSelections" => []
     ]];
 
-    public function __construct()
-    {
-        parent::__construct();
-        define("MODULE_DOCROOT", $this->getModulePath());
-    }
-
     function redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance) {
         $this->display_user_fullname();
     }
 
     public function redcap_module_link_check_display($project_id, $link) {
-        $configs = $this->getProjectSettings();
-
         // find a match
-        $linkTitle = $configs["display_title"]["value"];
+        $linkTitle = $this->getProjectSetting("display_title");
         if (isset($linkTitle)) {
             // modify link per config values
             $link["name"] = $linkTitle;
@@ -66,11 +58,12 @@ class OrcaCallList extends AbstractExternalModule  {
     }
 
     public function initializeSmarty() {
+        $module_path = $this->getModulePath();
         self::$smarty = new \Smarty();
-        self::$smarty->setTemplateDir(MODULE_DOCROOT . 'templates');
-        self::$smarty->setCompileDir(MODULE_DOCROOT . 'templates_c');
-        self::$smarty->setConfigDir(MODULE_DOCROOT . 'configs');
-        self::$smarty->setCacheDir(MODULE_DOCROOT . 'cache');
+        self::$smarty->setTemplateDir($module_path . 'templates');
+        self::$smarty->setCompileDir($module_path . 'templates_c');
+        self::$smarty->setConfigDir($module_path . 'configs');
+        self::$smarty->setCacheDir($module_path . 'cache');
     }
 
     public function setTemplateVariable($key, $value) {

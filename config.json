@@ -37,8 +37,9 @@
     "project": [
       {
         "name": "Orca Call List",
-        "icon": "brick",
-        "url": "index.php"
+        "icon": "fas fa-bars",
+        "url": "index.php",
+        "show-header-and-footer": true
       }
     ]
   },

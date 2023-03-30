@@ -2,8 +2,6 @@
 /** @var \ORCA\OrcaCallList\OrcaCallList $module */
 /** @var Project $Proj */
 
-require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
-
 $module->initializeSmarty();
 $module->addTime('init');
 
@@ -670,5 +668,4 @@ $module->displayTemplate("orca_call_list.tpl");
 $module->addTime("done");
 
 $module->outputTimerInfo();
-
-require_once APP_PATH_DOCROOT . "ProjectGeneral/footer.php";
+$module->outputModuleVersionJS();

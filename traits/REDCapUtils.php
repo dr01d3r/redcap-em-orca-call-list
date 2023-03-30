@@ -275,5 +275,12 @@ trait REDCapUtils
         }
     }
 
-
+    /**
+     * Outputs the module directory folder name into the page footer, for easy reference.
+     * @return void
+     */
+    public function outputModuleVersionJS() {
+        $module_info = $this->getModuleName() . " (" . $this->VERSION . ")";
+        echo "<script>$(function() { $('div#south table tr:first td:last, #footer').prepend('<span>$module_info</span>&nbsp;|&nbsp;'); });</script>";
+    }
 }

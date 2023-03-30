@@ -3,6 +3,7 @@
 - Upgraded to v7 of the module framework
 - Bootstrap 5 compatibility
 - Minor code cleanup and reformatting
+- Module name and version now display in the page footer
 ## 1.3.2
 - PHP 8 bugfix
 ## 1.3.1
