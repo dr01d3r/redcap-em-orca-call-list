@@ -1,4 +1,5 @@
 ## 1.3.3
+- Bump Smarty from 3.1.47 to 3.1.48
 - Fixed a series of bugs that would trigger fatal errors in PHP 8
 - Upgraded to v7 of the module framework
 - Bootstrap 5 compatibility
