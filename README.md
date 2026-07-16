@@ -1,5 +1,7 @@
 # ORCA Call List (REDCap External Module)
 
+#### This module has been rebuilt under the new name [ORCA Call List Manager](https://github.com/krishchant/redcap-em-orca-call-list-manager).  As a result, this repo has been archived into a readonly state.
+
 ### Purpose
 
 The purpose of this module is to have a sortable data table to show patient status along the recruitment process.   
